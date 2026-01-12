@@ -1,0 +1,1192 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calendário Atividades FIES e PROUNI 2026</title>
+
+  <!-- SheetJS (XLSX) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --afya-magenta:#CE0058;
+      --afya-ink:#232323;
+      --afya-muted:#8E9794;
+      --afya-white:#FFFFFF;
+
+      --bg:#0B0C10;
+      --stroke:#242836;
+      --stroke2:#1B1F2B;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+
+      --radius: 16px;
+      --row-height: 44px;
+      --bar-height: 26px;
+      --bar-radius: 10px;
+
+      --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+
+      --lane-left-width: 220px; /* coluna do produto */
+    }
+
+    *{ box-sizing: border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background: radial-gradient(1200px 600px at 15% 0%, rgba(206,0,88,.12), transparent 60%),
+                  radial-gradient(900px 500px at 85% 10%, rgba(0,87,184,.10), transparent 55%),
+                  var(--bg);
+      color: var(--afya-white);
+      font-family: var(--font);
+      overflow:hidden;
+    }
+
+    .page{ height:100%; display:flex; flex-direction:column; gap:14px; padding:16px; }
+    .topbar{ display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; }
+
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      padding:12px 14px;
+      background: linear-gradient(180deg, rgba(17,19,26,.9), rgba(15,17,23,.9));
+      border: 1px solid var(--stroke2);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      min-width:260px;
+      flex:0 0 auto;
+    }
+    .brand .dot{ width:12px; height:12px; border-radius:50%; background:var(--afya-magenta); box-shadow:0 0 0 6px rgba(206,0,88,.12); }
+    .brand h1{ font-size:15px; margin:0; font-weight:700; letter-spacing:.2px; }
+    .brand p{ margin:2px 0 0 0; font-size:12px; color:rgba(255,255,255,.7); }
+
+    .filters{
+      flex:1 1 auto;
+      display:flex; gap:12px; align-items:stretch; flex-wrap:wrap;
+      padding:12px;
+      background: linear-gradient(180deg, rgba(17,19,26,.9), rgba(15,17,23,.9));
+      border: 1px solid var(--stroke2);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .filters-collapsed .filters{ display:none; }
+    .field{ display:flex; flex-direction:column; gap:6px; min-width:170px; }
+    .field label{ font-size:11px; color:rgba(255,255,255,.72); letter-spacing:.25px; text-transform:uppercase; }
+
+    select, input[type="month"], input[type="text"]{
+      width:100%; height:38px; padding:8px 10px;
+      border-radius:10px;
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.03);
+      color: var(--afya-white);
+      outline:none;
+    }
+    select option{ background:#0F1117; color:#fff; }
+    input[type="month"]{ color-scheme: dark; }
+
+    .btn{
+      height:38px; padding:0 12px;
+      border-radius:10px;
+      border:1px solid rgba(206,0,88,.45);
+      background: rgba(206,0,88,.12);
+      color: var(--afya-white);
+      cursor:pointer;
+      font-weight:650;
+      display:inline-flex; align-items:center; gap:8px;
+      transition: transform .06s ease, background .18s ease, border-color .18s ease;
+      user-select:none; white-space:nowrap;
+    }
+    .btn:hover{ background: rgba(206,0,88,.18); border-color: rgba(206,0,88,.65); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.secondary{ border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.06); }
+    .btn.secondary:hover{ background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.26); }
+
+    .file-wrap{ display:flex; gap:8px; align-items:end; min-width:280px; }
+    input[type="file"]{
+      width:100%; height:38px;
+      border-radius:10px;
+      border:1px dashed rgba(142,151,148,.35);
+      background: rgba(255,255,255,.02);
+      color: rgba(255,255,255,.7);
+      padding:6px 10px;
+    }
+
+    .content{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
+
+    .meta{
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
+      padding:10px 12px;
+      background: rgba(255,255,255,.02);
+      border: 1px solid var(--stroke2);
+      border-radius: var(--radius);
+    }
+    .meta .hint{ font-size:12px; color:rgba(255,255,255,.72); line-height:1.3; }
+    .meta .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      border:1px solid rgba(206,0,88,.35);
+      background: rgba(206,0,88,.10);
+      padding:7px 10px;
+      border-radius:999px;
+      font-size:12px;
+      color: rgba(255,255,255,.86);
+      white-space:nowrap;
+    }
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:11px;
+      padding:2px 7px;
+      border-radius:8px;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.12);
+      color: rgba(255,255,255,.86);
+    }
+
+    .board{ flex:1 1 auto; min-height:0; overflow:auto; padding-bottom:18px; }
+    .lanes{
+      width:100%;
+      max-width: 1600px;
+      margin:0 auto;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      padding:2px;
+    }
+
+    .product{
+      display:grid;
+      grid-template-columns: var(--lane-left-width) 1fr;
+      width:100%;
+      background: linear-gradient(180deg, rgba(17,19,26,.9), rgba(15,17,23,.9));
+      border:1px solid var(--stroke2);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .product-left{
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      padding: 12px 12px;
+      border-right:1px solid rgba(255,255,255,.10);
+      background:
+        radial-gradient(240px 160px at 20% 0%, rgba(206,0,88,.22), transparent 60%),
+        linear-gradient(180deg, rgba(206,0,88,.14), rgba(17,19,26,.92));
+    }
+    .product-left .name{
+      font-weight:900;
+      font-size:13px;
+      letter-spacing:.2px;
+      margin-bottom:8px;
+    }
+    .product-left .count{
+      display:inline-flex;
+      font-size:12px; color:rgba(255,255,255,.78);
+      padding:6px 10px; border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+      white-space:nowrap;
+    }
+
+    .product-right{
+      min-width: 920px;
+    }
+
+    .week-header{ padding:10px 14px 8px 14px; border-bottom:1px solid var(--stroke2); background: rgba(255,255,255,.02); }
+    .week-grid{
+      position:relative; width:100%; height:42px;
+      border-radius:12px;
+      border:1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      overflow:hidden;
+    }
+    .week-grid .week{
+      position:absolute; top:0; bottom:0;
+      border-right:1px solid rgba(142,151,148,.18);
+      display:flex; align-items:center; padding:0 10px;
+      font-size:11px; color:rgba(255,255,255,.78);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .week-grid .week:last-child{ border-right:none; }
+    .week-grid .month-split{
+      position:absolute; top:0; bottom:0; width:2px;
+      background: rgba(255,255,255,.12);
+      pointer-events:none;
+      mix-blend-mode: screen;
+    }
+
+    .rows{ padding:12px 14px 14px 14px; display:flex; flex-direction:column; gap:8px; }
+
+    .row{ display:flex; flex-direction:column; gap:6px; }
+    .row .top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .row .label{ font-size:12px; font-weight:650; max-width: calc(100% - 160px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .row .dates{ font-size:11px; color:rgba(255,255,255,.65); white-space:nowrap; }
+
+    .track{
+      position:relative;
+      width:100%;
+      min-width:900px;
+      height: var(--row-height);
+      border-radius:12px;
+      border:1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+      overflow:hidden;
+    }
+    .track .week-split{ position:absolute; top:0; bottom:0; width:1px; background: rgba(255,255,255,.08); pointer-events:none; }
+    .track .month-split{ position:absolute; top:0; bottom:0; width:2px; background: rgba(255,255,255,.12); pointer-events:none; mix-blend-mode: screen; }
+
+    .bar{
+      position:absolute;
+      top: calc((var(--row-height) - var(--bar-height))/2);
+      height: var(--bar-height);
+      border-radius: var(--bar-radius);
+      display:flex; align-items:center;
+      padding:0 10px;
+      font-size:12px; font-weight:750;
+      color: rgba(255,255,255,.95);
+      overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow: 0 10px 18px rgba(0,0,0,.28);
+    }
+    .bar .mini{
+      margin-left:10px;
+      font-size:11px; font-weight:650;
+      color: rgba(255,255,255,.82);
+      padding:3px 8px; border-radius:999px;
+      background: rgba(0,0,0,.16);
+      border:1px solid rgba(255,255,255,.10);
+    }
+
+    .empty{ padding:16px 14px 18px 14px; color:rgba(255,255,255,.68); font-size:13px; line-height:1.35; }
+
+    .more{ display:flex; justify-content:center; padding: 10px 0 4px 0; }
+
+    .overlay{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+    }
+    .overlay.hidden{ display:none; }
+    .overlay-card{
+      width: min(520px, 92vw);
+      background: linear-gradient(180deg, rgba(17,19,26,.95), rgba(15,17,23,.95));
+      border: 1px solid var(--stroke2);
+      border-radius: 16px;
+      padding: 16px 16px;
+      box-shadow: var(--shadow);
+      display:flex; gap:12px; align-items:center;
+    }
+    .spinner{
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.18);
+      border-top-color: var(--afya-magenta);
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg);} }
+    .overlay-text{ font-size:13px; color: rgba(255,255,255,.86); line-height:1.3; }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">
+        <div class="dot"></div>
+        <div>
+          <h1>Calendário Atividades FIES e PROUNI 2026</h1>
+          <p>Produto em “swimlane” • Coluna do produto + coluna das atividades</p>
+        </div>
+      </div>
+
+      <div class="filters" id="filtersPanel">
+        <div class="field" style="min-width:220px">
+          <label>Período (mês)</label>
+          <select id="periodMode">
+            <option value="SINGLE">Filtrar 1 mês</option>
+            <option value="RANGE">Filtrar vários meses (intervalo)</option>
+            <option value="ALL">Exibir todos os meses (da base)</option>
+          </select>
+        </div>
+
+        <div class="field" id="singleMonthField" style="min-width:160px">
+          <label>Mês</label>
+          <input id="monthPicker" type="month" />
+        </div>
+
+        <div class="field" id="rangeMonthField" style="min-width:340px; display:none;">
+          <label>Intervalo</label>
+          <div style="display:flex; gap:10px;">
+            <input id="monthFrom" type="month" style="flex:1" />
+            <input id="monthTo" type="month" style="flex:1" />
+          </div>
+        </div>
+
+        <div class="field" style="min-width:230px">
+          <label>Produto</label>
+          <select id="productSelect">
+            <option value="__ALL__">Todos</option>
+          </select>
+        </div>
+
+        <div class="field" style="min-width:320px">
+          <label>Semana</label>
+          <select id="weekSelect">
+            <option value="__ALL__">Todas</option>
+          </select>
+        </div>
+
+        <div class="field" style="min-width:260px">
+          <label>Atividade</label>
+          <select id="activitySelect">
+            <option value="__ALL__">Todas</option>
+          </select>
+        </div>
+
+        <div class="field" style="min-width:240px">
+          <label>Busca (texto)</label>
+          <input id="searchInput" type="text" placeholder="Ex.: aditamento, bolsa..." />
+        </div>
+
+        <div class="file-wrap">
+          <div class="field" style="min-width:280px">
+            <label>Importar Excel (.xlsx) / CSV</label>
+            <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" />
+          </div>
+          <button class="btn" id="btnImport">Importar</button>
+          <button class="btn secondary" id="btnTemplate">Template</button>
+          <button class="btn secondary" id="btnToggleFilters">Recolher</button>
+        </div>
+      </div>
+
+      <div style="display:none; align-items:stretch; gap:12px;" id="collapsedActions">
+        <button class="btn secondary" id="btnExpandFilters">Expandir filtros</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="meta">
+        <div class="hint" id="metaHint">
+          Dica: base com <span class="kbd">Produto</span>, <span class="kbd">Atividade</span>,
+          <span class="kbd">Data inicio</span>, <span class="kbd">Data final</span> (dd/mm/aaaa).
+        </div>
+        <div class="pill" id="metaPill">0 atividades</div>
+      </div>
+
+      <div class="board">
+        <div class="lanes" id="lanes"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="overlay" class="overlay hidden">
+    <div class="overlay-card">
+      <div class="spinner"></div>
+      <div class="overlay-text" id="overlayText">Carregando…</div>
+    </div>
+  </div>
+
+  <script>
+    // =========================
+    // CONFIG (GitHub Pages)
+    // =========================
+    // Coloque "Calendario.xlsx" na MESMA pasta do index.html
+    const DEFAULT_DATA_URL = "./Calendario.xlsx";
+    const CACHE_KEY = "afya_calendar_cache_v2"; // mude o sufixo se quiser resetar cache em massa
+
+    const MAX_RENDER_TOTAL = 500;
+    const MAX_RENDER_PER_PRODUCT = 200;
+
+    const pad2 = (n) => String(n).padStart(2, "0");
+    const fmtBR = (d) => `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${d.getFullYear()}`;
+    const fmtMonthBR = (year, monthIndex) =>
+      new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" })
+        .format(new Date(year, monthIndex, 1)).replace(".", "");
+
+    function parseBRDate(value){
+      if(!value) return null;
+      if (typeof value === "number" && isFinite(value)) {
+        const utcDays = Math.floor(value - 25569);
+        const utcValue = utcDays * 86400;
+        const dateInfo = new Date(utcValue * 1000);
+        return new Date(dateInfo.getFullYear(), dateInfo.getMonth(), dateInfo.getDate());
+      }
+      if (value instanceof Date) return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+
+      const s = String(value).trim();
+      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if(m) return new Date(+m[3], (+m[2])-1, +m[1]);
+      const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if(iso) return new Date(+iso[1], (+iso[2])-1, +iso[3]);
+      return null;
+    }
+
+    function startOfMonth(year, monthIndex){ return new Date(year, monthIndex, 1); }
+    function endOfMonth(year, monthIndex){ return new Date(year, monthIndex+1, 0); }
+
+    function buildWeeksForMonth(monthStart, monthEnd){
+      const weeks = [];
+      let curStart = new Date(monthStart);
+
+      const firstEnd = new Date(curStart);
+      const day = firstEnd.getDay();
+      const daysToSat = (6 - day + 7) % 7;
+      firstEnd.setDate(firstEnd.getDate() + daysToSat);
+
+      let curEnd = firstEnd > monthEnd ? new Date(monthEnd) : firstEnd;
+      weeks.push({ weekIndex: 1, start: new Date(curStart), end: new Date(curEnd) });
+
+      curStart = new Date(curEnd);
+      curStart.setDate(curStart.getDate() + 1);
+
+      let idx = 2;
+      while(curStart <= monthEnd){
+        curEnd = new Date(curStart);
+        const d = curEnd.getDay();
+        const toSat = (6 - d + 7) % 7;
+        curEnd.setDate(curEnd.getDate() + toSat);
+        if(curEnd > monthEnd) curEnd = new Date(monthEnd);
+        weeks.push({ weekIndex: idx++, start: new Date(curStart), end: new Date(curEnd) });
+        curStart = new Date(curEnd);
+        curStart.setDate(curStart.getDate() + 1);
+      }
+      return weeks;
+    }
+
+    function clampDate(d, min, max){
+      if(d < min) return new Date(min);
+      if(d > max) return new Date(max);
+      return new Date(d);
+    }
+
+    function daysBetweenInclusive(a, b){
+      const ms = 86400000;
+      const da = new Date(a.getFullYear(), a.getMonth(), a.getDate());
+      const db = new Date(b.getFullYear(), b.getMonth(), b.getDate());
+      return Math.floor((db - da)/ms) + 1;
+    }
+
+    function overlaps(rangeA, rangeB){
+      return rangeA.start <= rangeB.end && rangeB.start <= rangeA.end;
+    }
+
+    function ymToParts(ym){
+      const [y,m] = ym.split("-").map(Number);
+      return { y, m };
+    }
+
+    function monthsBetween(startYM, endYM){
+      const a = ymToParts(startYM), b = ymToParts(endYM);
+      let y = a.y, m = a.m;
+      const out = [];
+      while(y < b.y || (y === b.y && m <= b.m)){
+        const mi = m-1;
+        out.push({ y, monthIndex: mi, start: startOfMonth(y, mi), end: endOfMonth(y, mi), label: fmtMonthBR(y, mi) });
+        m++; if(m === 13){ m = 1; y++; }
+      }
+      return out;
+    }
+
+    // MESMA ATIVIDADE => MESMA COR (em qualquer mês/produto)
+    const palette = ["#CE0058","#0057B8","#5B8DEF","#2EC4B6","#7C4DFF","#FFB703","#FB8500","#4ADE80","#F43F5E","#22C55E"];
+    function hashStr(s){
+      let h = 2166136261;
+      for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return (h >>> 0);
+    }
+    function colorForActivity(activity){
+      const key = String(activity || "").trim().toLowerCase();
+      return palette[hashStr(key) % palette.length];
+    }
+    function shade(hex, percent){
+      let c = hex.replace("#","").trim();
+      if(c.length === 3) c = c.split("").map(x=>x+x).join("");
+      const num = parseInt(c,16);
+      let r = (num>>16)&255, g=(num>>8)&255, b=num&255;
+      r = Math.min(255, Math.max(0, Math.round(r * (100+percent)/100)));
+      g = Math.min(255, Math.max(0, Math.round(g * (100+percent)/100)));
+      b = Math.min(255, Math.max(0, Math.round(b * (100+percent)/100)));
+      return "#" + ((1<<24) + (r<<16) + (g<<8) + b).toString(16).slice(1);
+    }
+
+    // ✅ sem dados iniciais (vai vir do XLSX/CSV)
+    let allItems = [];
+
+    const expandedProducts = new Set();
+
+    const ui = {
+      periodMode: document.getElementById("periodMode"),
+      monthPicker: document.getElementById("monthPicker"),
+      monthFrom: document.getElementById("monthFrom"),
+      monthTo: document.getElementById("monthTo"),
+      singleMonthField: document.getElementById("singleMonthField"),
+      rangeMonthField: document.getElementById("rangeMonthField"),
+
+      productSelect: document.getElementById("productSelect"),
+      weekSelect: document.getElementById("weekSelect"),
+      activitySelect: document.getElementById("activitySelect"),
+      searchInput: document.getElementById("searchInput"),
+
+      lanes: document.getElementById("lanes"),
+      metaPill: document.getElementById("metaPill"),
+      metaHint: document.getElementById("metaHint"),
+
+      fileInput: document.getElementById("fileInput"),
+      btnImport: document.getElementById("btnImport"),
+      btnTemplate: document.getElementById("btnTemplate"),
+
+      btnToggleFilters: document.getElementById("btnToggleFilters"),
+      collapsedActions: document.getElementById("collapsedActions"),
+      btnExpandFilters: document.getElementById("btnExpandFilters"),
+
+      overlay: document.getElementById("overlay"),
+      overlayText: document.getElementById("overlayText"),
+    };
+
+    function showOverlay(text){
+      ui.overlayText.textContent = text || "Carregando…";
+      ui.overlay.classList.remove("hidden");
+    }
+    function hideOverlay(){ ui.overlay.classList.add("hidden"); }
+
+    function setDefaultMonths(){
+      const now = new Date();
+      const ym = `${now.getFullYear()}-${pad2(now.getMonth()+1)}`;
+      ui.monthPicker.value = ym;
+      ui.monthFrom.value = ym;
+      ui.monthTo.value = ym;
+    }
+
+    function getDataMonthBounds(){
+      const valid = allItems.filter(i => i.start && i.end);
+      if(valid.length === 0){
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${pad2(now.getMonth()+1)}`;
+        return { minYM: ym, maxYM: ym };
+      }
+      let min = valid[0].start, max = valid[0].end;
+      for(const it of valid){
+        if(it.start < min) min = it.start;
+        if(it.end > max) max = it.end;
+      }
+      return {
+        minYM: `${min.getFullYear()}-${pad2(min.getMonth()+1)}`,
+        maxYM: `${max.getFullYear()}-${pad2(max.getMonth()+1)}`
+      };
+    }
+
+    function getSelectedRange(){
+      const mode = ui.periodMode.value;
+
+      if(mode === "ALL"){
+        const { minYM, maxYM } = getDataMonthBounds();
+        const months = monthsBetween(minYM, maxYM);
+        return { mode, start: months[0].start, end: months[months.length-1].end, months };
+      }
+
+      if(mode === "RANGE"){
+        const from = ui.monthFrom.value, to = ui.monthTo.value;
+        if(!from || !to) return null;
+        const a = ymToParts(from), b = ymToParts(to);
+        let startYM = from, endYM = to;
+        if(a.y > b.y || (a.y === b.y && a.m > b.m)){ startYM = to; endYM = from; }
+        const months = monthsBetween(startYM, endYM);
+        return { mode, start: months[0].start, end: months[months.length-1].end, months };
+      }
+
+      const v = ui.monthPicker.value;
+      if(!v) return null;
+      const { y, m } = ymToParts(v);
+      const mi = m-1;
+      const months = [{ y, monthIndex: mi, start: startOfMonth(y, mi), end: endOfMonth(y, mi), label: fmtMonthBR(y, mi) }];
+      return { mode, start: months[0].start, end: months[0].end, months };
+    }
+
+    function buildWeeksForRange(months){
+      const weeks = [];
+      for(const mo of months){
+        const ws = buildWeeksForMonth(mo.start, mo.end);
+        for(const w of ws){
+          weeks.push({
+            key: `${mo.y}-${pad2(mo.monthIndex+1)}-W${w.weekIndex}`,
+            monthLabel: mo.label,
+            weekIndex: w.weekIndex,
+            start: w.start,
+            end: w.end,
+          });
+        }
+      }
+      return weeks;
+    }
+
+    function unique(arr){ return Array.from(new Set(arr)); }
+
+    function rebuildSelect(selectEl, values, allLabel){
+      const current = selectEl.value;
+      selectEl.innerHTML = "";
+      const optAll = document.createElement("option");
+      optAll.value = "__ALL__";
+      optAll.textContent = allLabel;
+      selectEl.appendChild(optAll);
+      values.forEach(v => {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        selectEl.appendChild(opt);
+      });
+      selectEl.value = values.includes(current) ? current : "__ALL__";
+    }
+
+    function rebuildWeekSelect(weeks){
+      const cur = ui.weekSelect.value;
+      ui.weekSelect.innerHTML = "";
+      const all = document.createElement("option");
+      all.value="__ALL__"; all.textContent="Todas";
+      ui.weekSelect.appendChild(all);
+
+      for(const w of weeks){
+        const opt = document.createElement("option");
+        opt.value = w.key;
+        opt.textContent = `${w.monthLabel} • Semana ${w.weekIndex} — ${fmtBR(w.start)} a ${fmtBR(w.end)}`;
+        ui.weekSelect.appendChild(opt);
+      }
+      ui.weekSelect.value = (cur !== "__ALL__" && weeks.some(w => w.key === cur)) ? cur : "__ALL__";
+    }
+
+    function getWeekFilter(weeks){
+      const wv = ui.weekSelect.value;
+      if(wv === "__ALL__") return null;
+      return weeks.find(w => w.key === wv) || null;
+    }
+
+    function applyFilters(items, range, weeks){
+      const product = ui.productSelect.value;
+      const activity = ui.activitySelect.value;
+      const q = ui.searchInput.value.trim().toLowerCase();
+      const wk = getWeekFilter(weeks);
+
+      const window = { start: range.start, end: range.end };
+
+      return items.filter(it => {
+        if(!it.start || !it.end) return false;
+        if(product !== "__ALL__" && it.product !== product) return false;
+        if(activity !== "__ALL__" && it.activity !== activity) return false;
+        if(!overlaps({start:it.start, end:it.end}, window)) return false;
+        if(wk && !overlaps({start:it.start, end:it.end}, {start:wk.start, end:wk.end})) return false;
+        if(q){
+          const hay = `${it.product} ${it.activity} ${fmtBR(it.start)} ${fmtBR(it.end)}`.toLowerCase();
+          if(!hay.includes(q)) return false;
+        }
+        return true;
+      });
+    }
+
+    function render(){
+      const range = getSelectedRange();
+      if(!range) return;
+
+      const weeks = buildWeeksForRange(range.months);
+
+      const products = unique(allItems.map(i => i.product)).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+      const activities = unique(allItems.map(i => i.activity)).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+
+      rebuildSelect(ui.productSelect, products, "Todos");
+      rebuildSelect(ui.activitySelect, activities, "Todas");
+      rebuildWeekSelect(weeks);
+
+      let filtered = applyFilters(allItems, range, weeks);
+
+      const capped = filtered.length > MAX_RENDER_TOTAL;
+      if(capped) filtered = filtered.slice(0, MAX_RENDER_TOTAL);
+
+      ui.metaPill.textContent = capped
+        ? `${filtered.length}+ atividades (cap de performance)`
+        : `${filtered.length} atividades (no período)`;
+
+      const byProduct = new Map();
+      for(const it of filtered){
+        if(!byProduct.has(it.product)) byProduct.set(it.product, []);
+        byProduct.get(it.product).push(it);
+      }
+      for(const [k, list] of byProduct){
+        list.sort((a,b) => a.start - b.start || a.end - b.end || a.activity.localeCompare(b.activity,"pt-BR"));
+      }
+
+      ui.lanes.innerHTML = "";
+
+      const selectedProduct = ui.productSelect.value;
+      const order = (selectedProduct !== "__ALL__") ? [selectedProduct] : products;
+
+      // se não tem produto nenhum (base vazia)
+      if(order.length === 0){
+        const wrap = document.createElement("div");
+        wrap.className = "product";
+        wrap.innerHTML = `
+          <div class="product-left">
+            <div class="name">Sem dados</div>
+            <div class="count">0 atividades</div>
+          </div>
+          <div class="product-right">
+            <div class="week-header">
+              <div class="week-grid"></div>
+            </div>
+            <div class="rows">
+              <div class="empty">
+                Não encontrei dados ainda. Suba <b>Calendario.xlsx</b> no GitHub (mesma pasta do index.html) ou importe manualmente pelo botão <b>Importar</b>.
+              </div>
+            </div>
+          </div>
+        `;
+        ui.lanes.appendChild(wrap);
+
+        ui.metaHint.innerHTML = `Sem atividades carregadas • Colunas esperadas: <span class="kbd">Produto</span>, <span class="kbd">Atividade</span>, <span class="kbd">Data inicio</span>, <span class="kbd">Data final</span>.`;
+        return;
+      }
+
+      for(const product of order){
+        const list = byProduct.get(product) || [];
+        ui.lanes.appendChild(renderProductLane(product, list, range, weeks));
+      }
+
+      const wk = getWeekFilter(weeks);
+      if(wk){
+        ui.metaHint.innerHTML = `Exibindo atividades que cruzam <span class="kbd">${wk.monthLabel}</span> • <span class="kbd">Semana ${wk.weekIndex}</span> (${fmtBR(wk.start)} a ${fmtBR(wk.end)}).`;
+      } else {
+        const modeLabel =
+          range.mode === "ALL" ? "Todos os meses (base)" :
+          range.mode === "RANGE" ? `Intervalo (${range.months[0].label} → ${range.months[range.months.length-1].label})` :
+          `Mês (${range.months[0].label})`;
+
+        ui.metaHint.innerHTML = `Período: <span class="kbd">${modeLabel}</span> • Mesma atividade mantém a mesma cor (ex.: Bolsa permanência).`;
+      }
+    }
+
+    function renderProductLane(product, items, range, weeks){
+      const wrap = document.createElement("div");
+      wrap.className = "product";
+
+      const left = document.createElement("div");
+      left.className = "product-left";
+      left.innerHTML = `
+        <div class="name">${escapeHtml(product)}</div>
+        <div class="count">${items.length} atividades</div>
+      `;
+
+      const right = document.createElement("div");
+      right.className = "product-right";
+
+      const weekHeader = document.createElement("div");
+      weekHeader.className = "week-header";
+
+      const weekGrid = document.createElement("div");
+      weekGrid.className = "week-grid";
+
+      const totalDays = daysBetweenInclusive(range.start, range.end);
+
+      weeks.forEach((w) => {
+        const leftDays = daysBetweenInclusive(range.start, w.start) - 1;
+        const wDays = daysBetweenInclusive(w.start, w.end);
+        const div = document.createElement("div");
+        div.className = "week";
+        div.style.left = (leftDays / totalDays * 100) + "%";
+        div.style.width = (wDays / totalDays * 100) + "%";
+        div.title = `${w.monthLabel} • Semana ${w.weekIndex}: ${fmtBR(w.start)} a ${fmtBR(w.end)}`;
+        div.textContent = `Semana ${w.weekIndex} — ${fmtBR(w.start)} a ${fmtBR(w.end)}`;
+        weekGrid.appendChild(div);
+      });
+
+      for(let i=1;i<range.months.length;i++){
+        const mStart = range.months[i].start;
+        const leftDays = daysBetweenInclusive(range.start, mStart) - 1;
+        const split = document.createElement("div");
+        split.className = "month-split";
+        split.style.left = (leftDays / totalDays * 100) + "%";
+        weekGrid.appendChild(split);
+      }
+
+      weekHeader.appendChild(weekGrid);
+
+      const rows = document.createElement("div");
+      rows.className = "rows";
+
+      if(items.length === 0){
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.innerHTML = `Nenhuma atividade para <b>${escapeHtml(product)}</b> com os filtros atuais.`;
+        rows.appendChild(empty);
+      } else {
+        const expanded = expandedProducts.has(product);
+        const limit = expanded ? items.length : Math.min(items.length, MAX_RENDER_PER_PRODUCT);
+
+        for(let i=0;i<limit;i++){
+          rows.appendChild(renderActivityRow(items[i], range, weeks));
+        }
+
+        if(!expanded && items.length > MAX_RENDER_PER_PRODUCT){
+          const more = document.createElement("div");
+          more.className = "more";
+          const btn = document.createElement("button");
+          btn.className = "btn secondary";
+          btn.textContent = `Mostrar todas (${items.length})`;
+          btn.onclick = () => { expandedProducts.add(product); render(); };
+          more.appendChild(btn);
+          rows.appendChild(more);
+        }
+      }
+
+      right.appendChild(weekHeader);
+      right.appendChild(rows);
+
+      wrap.appendChild(left);
+      wrap.appendChild(right);
+      return wrap;
+    }
+
+    function renderActivityRow(it, range, weeks){
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const top = document.createElement("div");
+      top.className = "top";
+
+      const label = document.createElement("div");
+      label.className = "label";
+      label.title = it.activity;
+      label.textContent = it.activity;
+
+      const dates = document.createElement("div");
+      dates.className = "dates";
+      dates.textContent = `${fmtBR(it.start)} → ${fmtBR(it.end)}`;
+
+      top.appendChild(label);
+      top.appendChild(dates);
+
+      const track = document.createElement("div");
+      track.className = "track";
+
+      const totalDays = daysBetweenInclusive(range.start, range.end);
+
+      for(let i=1;i<weeks.length;i++){
+        const leftDays = daysBetweenInclusive(range.start, weeks[i].start) - 1;
+        const split = document.createElement("div");
+        split.className = "week-split";
+        split.style.left = (leftDays / totalDays * 100) + "%";
+        track.appendChild(split);
+      }
+
+      for(let i=1;i<range.months.length;i++){
+        const leftDays = daysBetweenInclusive(range.start, range.months[i].start) - 1;
+        const split = document.createElement("div");
+        split.className = "month-split";
+        split.style.left = (leftDays / totalDays * 100) + "%";
+        track.appendChild(split);
+      }
+
+      const s = clampDate(it.start, range.start, range.end);
+      const e = clampDate(it.end, range.start, range.end);
+
+      const leftDays = daysBetweenInclusive(range.start, s) - 1;
+      const barDays = daysBetweenInclusive(s, e);
+
+      const leftPct = (leftDays / totalDays) * 100;
+      const widthPct = (barDays / totalDays) * 100;
+
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const c = colorForActivity(it.activity);
+      bar.style.background = `linear-gradient(90deg, ${c}, ${shade(c, -12)})`;
+      bar.style.left = leftPct + "%";
+      bar.style.width = widthPct + "%";
+      bar.innerHTML = `<span>${escapeHtml(it.activity)}</span><span class="mini">${fmtBR(s)} a ${fmtBR(e)}</span>`;
+
+      track.appendChild(bar);
+
+      row.appendChild(top);
+      row.appendChild(track);
+      return row;
+    }
+
+    function normalizeHeader(h){
+      return String(h || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    }
+
+    function mapRowToItem(row){
+      const keys = Object.keys(row);
+      const get = (...cands) => {
+        for(const c of cands){
+          const cNorm = normalizeHeader(c);
+          const k = keys.find(k => normalizeHeader(k) === cNorm);
+          if(k != null) return row[k];
+        }
+        return undefined;
+      };
+
+      const product = String(get("Produto","product") ?? "").trim();
+      const activity = String(get("Atividade","activity","tarefa") ?? "").trim();
+      const startRaw = get("Data inicio","Data Início","inicio","start","Data início");
+      const endRaw   = get("Data final","Data Final","final","end","Data fim","fim");
+
+      const start = parseBRDate(startRaw);
+      const end = parseBRDate(endRaw);
+
+      if(!product || !activity || !start || !end) return null;
+      return { product, activity, start, end };
+    }
+
+    function readCSV(text){
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+      if(lines.length < 2) return [];
+      const sep = lines[0].includes(";") ? ";" : ",";
+      const headers = lines[0].split(sep).map(s => s.trim());
+      const out = [];
+      for(let i=1;i<lines.length;i++){
+        const cols = lines[i].split(sep);
+        const row = {};
+        headers.forEach((h, idx) => row[h] = (cols[idx] ?? "").trim());
+        out.push(row);
+      }
+      return out;
+    }
+
+    function detectHeaderRow(ws){
+      const preview = XLSX.utils.sheet_to_json(ws, {
+        header: 1,
+        range: { s: { r: 0, c: 0 }, e: { r: 30, c: 20 } },
+        blankrows: false
+      });
+
+      const has = (row, token) => row.some(v => normalizeHeader(v) === normalizeHeader(token));
+
+      for (let r = 0; r < preview.length; r++) {
+        const row = (preview[r] || []).map(v => String(v ?? ""));
+        if (
+          has(row, "Produto") &&
+          has(row, "Atividade") &&
+          (has(row, "Data inicio") || has(row, "Data Início") || has(row, "Data início")) &&
+          (has(row, "Data final") || has(row, "Data Final") || has(row, "Data fim"))
+        ) return r;
+      }
+      return 0;
+    }
+
+    async function importFile(file){
+      const ext = (file.name.split(".").pop() || "").toLowerCase();
+
+      if(ext === "csv"){
+        const text = await file.text();
+        const rows = readCSV(text);
+        return rows.map(mapRowToItem).filter(Boolean);
+      }
+
+      const data = await file.arrayBuffer();
+      return await importXlsxArrayBuffer(data);
+    }
+
+    async function importXlsxArrayBuffer(data){
+      const wb = XLSX.read(data, {
+        type: "array",
+        cellDates: true,
+        cellNF: false,
+        cellText: false,
+        cellStyles: false,
+        bookVBA: false
+      });
+
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const headerRow = detectHeaderRow(ws);
+
+      const MAX_ROWS = 2000;
+      const MAX_COLS = 30;
+
+      const safeRange = {
+        s: { r: headerRow, c: 0 },
+        e: { r: headerRow + MAX_ROWS, c: MAX_COLS }
+      };
+
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "", range: safeRange });
+      return json.map(mapRowToItem).filter(Boolean);
+    }
+
+    async function loadFromUrl(url){
+      // GitHub Pages geralmente funciona de boa com isso (mesma origem)
+      const res = await fetch(url, { cache: "no-store" });
+      if(!res.ok) throw new Error(`Falha ao baixar planilha (${res.status})`);
+      const buf = await res.arrayBuffer();
+      return await importXlsxArrayBuffer(buf);
+    }
+
+    function downloadTemplateCSV(){
+      const csv =
+`Produto;Atividade;Data inicio;Data final
+FIES;Aditamento de renovação;19/01/2026;31/05/2026
+FIES;Processo Prorrogados;14/01/2026;01/02/2026
+Prouni;Bolsa permanência;01/01/2026;15/01/2026
+Prouni;Bolsa permanência;01/02/2026;15/02/2026
+`;
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "template_roadmap.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function updatePeriodFields(){
+      const mode = ui.periodMode.value;
+      ui.singleMonthField.style.display = (mode === "SINGLE") ? "" : "none";
+      ui.rangeMonthField.style.display = (mode === "RANGE") ? "" : "none";
+    }
+
+    function collapseFilters(){
+      document.body.classList.add("filters-collapsed");
+      ui.collapsedActions.style.display = "flex";
+    }
+    function expandFilters(){
+      document.body.classList.remove("filters-collapsed");
+      ui.collapsedActions.style.display = "none";
+    }
+
+    // =========================
+    // Cache (opcional)
+    // =========================
+    function serializeItems(items){
+      return items.map(it => ({
+        product: it.product,
+        activity: it.activity,
+        start: it.start ? it.start.toISOString().slice(0,10) : null,
+        end: it.end ? it.end.toISOString().slice(0,10) : null,
+      }));
+    }
+
+    function deserializeItems(raw){
+      if(!Array.isArray(raw)) return [];
+      return raw.map(it => ({
+        product: String(it.product || "").trim(),
+        activity: String(it.activity || "").trim(),
+        start: parseBRDate(it.start),
+        end: parseBRDate(it.end),
+      })).filter(it => it.product && it.activity && it.start && it.end);
+    }
+
+    function cacheSave(items){
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(serializeItems(items))); } catch {}
+    }
+
+    function cacheLoad(){
+      try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if(!raw) return null;
+        return deserializeItems(JSON.parse(raw));
+      } catch {
+        return null;
+      }
+    }
+
+    // =========================
+    // Auto-load: tenta XLSX do GitHub primeiro,
+    // se falhar, usa cache local (se existir)
+    // =========================
+    async function bootstrapData(){
+      try{
+        showOverlay("Carregando planilha do GitHub…");
+        await new Promise(r => setTimeout(r, 50));
+
+        const items = await loadFromUrl(DEFAULT_DATA_URL);
+        allItems = items;
+        cacheSave(items);
+
+        // default mais útil: mostrar tudo da base
+        ui.periodMode.value = "ALL";
+        updatePeriodFields();
+      }catch(err){
+        console.warn("Auto-load falhou:", err);
+        const cached = cacheLoad();
+        if(cached?.length){
+          allItems = cached;
+
+          ui.periodMode.value = "ALL";
+          updatePeriodFields();
+        }
+      }finally{
+        hideOverlay();
+        render();
+      }
+    }
+
+    function wire(){
+      setDefaultMonths();
+      updatePeriodFields();
+
+      ui.periodMode.addEventListener("change", () => { updatePeriodFields(); render(); });
+      ui.monthPicker.addEventListener("change", render);
+      ui.monthFrom.addEventListener("change", render);
+      ui.monthTo.addEventListener("change", render);
+
+      ui.productSelect.addEventListener("change", render);
+      ui.weekSelect.addEventListener("change", render);
+      ui.activitySelect.addEventListener("change", render);
+
+      ui.searchInput.addEventListener("input", () => {
+        clearTimeout(ui.searchInput._t);
+        ui.searchInput._t = setTimeout(render, 150);
+      });
+
+      ui.btnTemplate.addEventListener("click", downloadTemplateCSV);
+
+      ui.btnImport.addEventListener("click", async () => {
+        const f = ui.fileInput.files?.[0];
+        if(!f){ alert("Selecione um arquivo .xlsx/.xls/.csv para importar."); return; }
+
+        try{
+          showOverlay("Importando a planilha…");
+          await new Promise(r => setTimeout(r, 50));
+
+          const items = await importFile(f);
+
+          if(items.length === 0){
+            hideOverlay();
+            alert("Não encontrei linhas válidas. Verifique as colunas: Produto, Atividade, Data inicio, Data final.");
+            return;
+          }
+
+          expandedProducts.clear();
+          allItems = items;
+          cacheSave(items);
+
+          hideOverlay();
+          render();
+        }catch(err){
+          hideOverlay();
+          console.error(err);
+          alert("Falha ao importar. Se o Excel estiver com formatação em linhas muito abaixo, salve como CSV e importe o CSV.");
+        }
+      });
+
+      ui.btnToggleFilters.addEventListener("click", () => {
+        if(document.body.classList.contains("filters-collapsed")) expandFilters();
+        else collapseFilters();
+      });
+
+      ui.btnExpandFilters.addEventListener("click", expandFilters);
+
+      // ✅ auto-load do XLSX hospedado
+      bootstrapData();
+    }
+
+    wire();
+  </script>
+</body>
+</html>
