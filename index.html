@@ -102,13 +102,37 @@
     .btn.secondary:hover{ background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.26); }
 
     .file-wrap{ display:flex; gap:8px; align-items:end; min-width:280px; }
-    input[type="file"]{
-      width:100%; height:38px;
+
+    /* Picker custom (resolve clique no “escolher arquivo”) */
+    .file-picker{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      height:38px;
+    }
+    .file-name{
+      flex:1;
+      height:38px;
+      display:flex;
+      align-items:center;
+      padding:0 10px;
       border-radius:10px;
       border:1px dashed rgba(142,151,148,.35);
       background: rgba(255,255,255,.02);
-      color: rgba(255,255,255,.7);
-      padding:6px 10px;
+      color: rgba(255,255,255,.75);
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      cursor:pointer;
+    }
+    /* esconde o input real */
+    #fileInput{
+      position:absolute;
+      left:-99999px;
+      width:1px;
+      height:1px;
+      opacity:0;
+      pointer-events:none;
     }
 
     .content{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; }
@@ -219,7 +243,11 @@
 
     .row{ display:flex; flex-direction:column; gap:6px; }
     .row .top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
-    .row .label{ font-size:12px; font-weight:650; max-width: calc(100% - 160px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .row .label{
+      font-size:12px; font-weight:650;
+      max-width: calc(100% - 160px);
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
     .row .dates{ font-size:11px; color:rgba(255,255,255,.65); white-space:nowrap; }
 
     .track{
@@ -247,6 +275,7 @@
       overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
       border:1px solid rgba(255,255,255,.14);
       box-shadow: 0 10px 18px rgba(0,0,0,.28);
+      cursor: default;
     }
     .bar .mini{
       margin-left:10px;
@@ -287,6 +316,30 @@
     }
     @keyframes spin { to { transform: rotate(360deg);} }
     .overlay-text{ font-size:13px; color: rgba(255,255,255,.86); line-height:1.3; }
+
+    /* Tooltip (nome completo no hover) */
+    .tooltip{
+      position: fixed;
+      z-index: 10000;
+      pointer-events: none;
+      transform: translate(12px, 12px);
+      max-width: min(520px, calc(100vw - 24px));
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(15, 17, 23, .92);
+      border: 1px solid rgba(255,255,255,.16);
+      box-shadow: 0 14px 40px rgba(0,0,0,.45);
+      color: rgba(255,255,255,.95);
+      font-size: 12.5px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      line-height: 1.25;
+      backdrop-filter: blur(8px);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tooltip.hidden{ display:none; }
   </style>
 </head>
 
@@ -351,18 +404,26 @@
         </div>
 
         <div class="file-wrap">
-          <div class="field" style="min-width:280px">
-            <label>Importar Excel (.xlsx) / CSV</label>
+          <div class="field" style="min-width:420px; position:relative;">
+            <label>Arquivo (.xlsx / .csv)</label>
+
+            <div class="file-picker">
+              <button class="btn secondary" id="btnChooseFile" type="button">Escolher arquivo</button>
+              <div class="file-name" id="fileName" title="Clique para escolher um arquivo">Nenhum arquivo selecionado</div>
+            </div>
+
+            <!-- input real escondido -->
             <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" />
           </div>
-          <button class="btn" id="btnImport">Importar</button>
-          <button class="btn secondary" id="btnTemplate">Template</button>
-          <button class="btn secondary" id="btnToggleFilters">Recolher</button>
+
+          <button class="btn" id="btnImport" type="button">Importar</button>
+          <button class="btn secondary" id="btnTemplate" type="button">Template</button>
+          <button class="btn secondary" id="btnToggleFilters" type="button">Recolher</button>
         </div>
       </div>
 
       <div style="display:none; align-items:stretch; gap:12px;" id="collapsedActions">
-        <button class="btn secondary" id="btnExpandFilters">Expandir filtros</button>
+        <button class="btn secondary" id="btnExpandFilters" type="button">Expandir filtros</button>
       </div>
     </div>
 
@@ -387,6 +448,9 @@
       <div class="overlay-text" id="overlayText">Carregando…</div>
     </div>
   </div>
+
+  <!-- Tooltip do hover -->
+  <div id="tooltip" class="tooltip hidden"></div>
 
   <script>
     // =========================
@@ -489,26 +553,28 @@
       return out;
     }
 
-    // MESMA ATIVIDADE => MESMA COR (em qualquer mês/produto)
-    const palette = ["#CE0058","#0057B8","#5B8DEF","#2EC4B6","#7C4DFF","#FFB703","#FB8500","#4ADE80","#F43F5E","#22C55E"];
+    // =========================
+    // CORES: vivas e quase ilimitadas,
+    // repetindo a mesma cor quando o nome da atividade é igual
+    // =========================
     function hashStr(s){
       let h = 2166136261;
       for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
       return (h >>> 0);
     }
+
     function colorForActivity(activity){
       const key = String(activity || "").trim().toLowerCase();
-      return palette[hashStr(key) % palette.length];
-    }
-    function shade(hex, percent){
-      let c = hex.replace("#","").trim();
-      if(c.length === 3) c = c.split("").map(x=>x+x).join("");
-      const num = parseInt(c,16);
-      let r = (num>>16)&255, g=(num>>8)&255, b=num&255;
-      r = Math.min(255, Math.max(0, Math.round(r * (100+percent)/100)));
-      g = Math.min(255, Math.max(0, Math.round(g * (100+percent)/100)));
-      b = Math.min(255, Math.max(0, Math.round(b * (100+percent)/100)));
-      return "#" + ((1<<24) + (r<<16) + (g<<8) + b).toString(16).slice(1);
+      const h = hashStr(key);
+
+      const hue = h % 360;                   // 0..359
+      const sat = 82 + (h % 15);             // 82..96 (bem vivo)
+      const light = 48 + ((h >>> 8) % 14);   // 48..61 (não fica cinza)
+
+      const base = `hsl(${hue} ${sat}% ${light}%)`;
+      const dark = `hsl(${hue} ${sat}% ${Math.max(34, light - 10)}%)`;
+
+      return { base, dark };
     }
 
     // ✅ sem dados iniciais (vai vir do XLSX/CSV)
@@ -534,6 +600,9 @@
       metaHint: document.getElementById("metaHint"),
 
       fileInput: document.getElementById("fileInput"),
+      btnChooseFile: document.getElementById("btnChooseFile"),
+      fileName: document.getElementById("fileName"),
+
       btnImport: document.getElementById("btnImport"),
       btnTemplate: document.getElementById("btnTemplate"),
 
@@ -719,7 +788,6 @@
       const selectedProduct = ui.productSelect.value;
       const order = (selectedProduct !== "__ALL__") ? [selectedProduct] : products;
 
-      // se não tem produto nenhum (base vazia)
       if(order.length === 0){
         const wrap = document.createElement("div");
         wrap.className = "product";
@@ -854,6 +922,7 @@
       const label = document.createElement("div");
       label.className = "label";
       label.title = it.activity;
+      label.dataset.full = it.activity;
       label.textContent = it.activity;
 
       const dates = document.createElement("div");
@@ -895,10 +964,16 @@
 
       const bar = document.createElement("div");
       bar.className = "bar";
+
       const c = colorForActivity(it.activity);
-      bar.style.background = `linear-gradient(90deg, ${c}, ${shade(c, -12)})`;
+      bar.style.background = `linear-gradient(90deg, ${c.base}, ${c.dark})`;
+
       bar.style.left = leftPct + "%";
       bar.style.width = widthPct + "%";
+
+      bar.title = it.activity;
+      bar.dataset.full = it.activity;
+
       bar.innerHTML = `<span>${escapeHtml(it.activity)}</span><span class="mini">${fmtBR(s)} a ${fmtBR(e)}</span>`;
 
       track.appendChild(bar);
@@ -1010,7 +1085,6 @@
     }
 
     async function loadFromUrl(url){
-      // GitHub Pages geralmente funciona de boa com isso (mesma origem)
       const res = await fetch(url, { cache: "no-store" });
       if(!res.ok) throw new Error(`Falha ao baixar planilha (${res.status})`);
       const buf = await res.arrayBuffer();
@@ -1108,7 +1182,6 @@ Prouni;Bolsa permanência;01/02/2026;15/02/2026
         allItems = items;
         cacheSave(items);
 
-        // default mais útil: mostrar tudo da base
         ui.periodMode.value = "ALL";
         updatePeriodFields();
       }catch(err){
@@ -1116,13 +1189,41 @@ Prouni;Bolsa permanência;01/02/2026;15/02/2026
         const cached = cacheLoad();
         if(cached?.length){
           allItems = cached;
-
           ui.periodMode.value = "ALL";
           updatePeriodFields();
         }
       }finally{
         hideOverlay();
         render();
+      }
+    }
+
+    async function importSelectedFile(){
+      const f = ui.fileInput.files?.[0];
+      if(!f){ alert("Selecione um arquivo .xlsx/.xls/.csv para importar."); return; }
+
+      try{
+        showOverlay("Importando a planilha…");
+        await new Promise(r => setTimeout(r, 50));
+
+        const items = await importFile(f);
+
+        if(items.length === 0){
+          hideOverlay();
+          alert("Não encontrei linhas válidas. Verifique as colunas: Produto, Atividade, Data inicio, Data final.");
+          return;
+        }
+
+        expandedProducts.clear();
+        allItems = items;
+        cacheSave(items);
+
+        hideOverlay();
+        render();
+      }catch(err){
+        hideOverlay();
+        console.error(err);
+        alert("Falha ao importar. Se o Excel estiver com formatação em linhas muito abaixo, salve como CSV e importe o CSV.");
       }
     }
 
@@ -1146,34 +1247,17 @@ Prouni;Bolsa permanência;01/02/2026;15/02/2026
 
       ui.btnTemplate.addEventListener("click", downloadTemplateCSV);
 
-      ui.btnImport.addEventListener("click", async () => {
+      // === Escolher arquivo (ABRE o seletor do Windows) ===
+      ui.btnChooseFile.addEventListener("click", () => ui.fileInput.click());
+      ui.fileName.addEventListener("click", () => ui.fileInput.click());
+
+      ui.fileInput.addEventListener("change", () => {
         const f = ui.fileInput.files?.[0];
-        if(!f){ alert("Selecione um arquivo .xlsx/.xls/.csv para importar."); return; }
-
-        try{
-          showOverlay("Importando a planilha…");
-          await new Promise(r => setTimeout(r, 50));
-
-          const items = await importFile(f);
-
-          if(items.length === 0){
-            hideOverlay();
-            alert("Não encontrei linhas válidas. Verifique as colunas: Produto, Atividade, Data inicio, Data final.");
-            return;
-          }
-
-          expandedProducts.clear();
-          allItems = items;
-          cacheSave(items);
-
-          hideOverlay();
-          render();
-        }catch(err){
-          hideOverlay();
-          console.error(err);
-          alert("Falha ao importar. Se o Excel estiver com formatação em linhas muito abaixo, salve como CSV e importe o CSV.");
-        }
+        ui.fileName.textContent = f ? f.name : "Nenhum arquivo selecionado";
       });
+
+      // === Importar ===
+      ui.btnImport.addEventListener("click", importSelectedFile);
 
       ui.btnToggleFilters.addEventListener("click", () => {
         if(document.body.classList.contains("filters-collapsed")) expandFilters();
@@ -1181,6 +1265,62 @@ Prouni;Bolsa permanência;01/02/2026;15/02/2026
       });
 
       ui.btnExpandFilters.addEventListener("click", expandFilters);
+
+      // =========================
+      // Tooltip no hover (barra e label)
+      // =========================
+      const tooltip = document.getElementById("tooltip");
+      let ttEl = null;
+
+      function ttShow(text){
+        if(!text) return;
+        tooltip.textContent = text;
+        tooltip.classList.remove("hidden");
+      }
+      function ttHide(){
+        tooltip.classList.add("hidden");
+        ttEl = null;
+      }
+      function ttMove(ev){
+        if(tooltip.classList.contains("hidden")) return;
+
+        const margin = 14;
+        const x0 = ev.clientX + 12;
+        const y0 = ev.clientY + 12;
+
+        tooltip.style.left = x0 + "px";
+        tooltip.style.top  = y0 + "px";
+
+        const r = tooltip.getBoundingClientRect();
+        let x = x0, y = y0;
+
+        if(r.right > window.innerWidth - margin){
+          x = Math.max(margin, window.innerWidth - margin - r.width);
+        }
+        if(r.bottom > window.innerHeight - margin){
+          y = Math.max(margin, window.innerHeight - margin - r.height);
+        }
+
+        tooltip.style.left = x + "px";
+        tooltip.style.top  = y + "px";
+      }
+
+      ui.lanes.addEventListener("mouseover", (ev) => {
+        const el = ev.target.closest?.(".bar, .label");
+        if(!el) return;
+        ttEl = el;
+        ttShow(el.dataset.full || el.title || "");
+      });
+
+      ui.lanes.addEventListener("mousemove", (ev) => {
+        if(!ttEl) return;
+        ttMove(ev);
+      });
+
+      ui.lanes.addEventListener("mouseleave", ttHide);
+
+      document.addEventListener("scroll", ttHide, true);
+      window.addEventListener("blur", ttHide);
 
       // ✅ auto-load do XLSX hospedado
       bootstrapData();
